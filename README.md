@@ -48,7 +48,7 @@ Example return - truncated for clarity
         }
     ],
     "meta": {
-        "threadId": "thread_KQMcww2oUlUuVmOAJ9qhQrEa"
+        "threadId": "my_thread_id"
     }
 }
 ```
@@ -78,7 +78,7 @@ Example return - this has been truncated, as it returns the full ordinance text
         }
     ],
     "meta": {
-        "threadId": "thread_OJrpnQ3P4EV8rDBPPQ0b7OG5"
+        "threadId": "my_thread_id"
     }
 }
 ```
