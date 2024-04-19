@@ -1,6 +1,8 @@
 # indy-civic-ai
 
-The goal of this project is to create a REST API that is a delegate in front of a series of OpenAI Assistants that are trained to answer civics related questions for Indianapolis and Marion County.
+The goal of this project is to create a Web App that is a delegate in front of a series of OpenAI Assistants that are trained to answer civics related questions for Indianapolis and Marion County. 
+
+_Disclaimer_: This project is not affiliated with the city of Indianapolis or Marion County in any official capacity. This is one Indianapolis resident's side project.
 
 ## Methodology
 To interact with an assistant, we'll need to:
