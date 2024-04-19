@@ -5,6 +5,9 @@ The goal of this project is to create a Web App that is a delegate in front of a
 _Disclaimer_: This project is not affiliated with the city of Indianapolis or Marion County in any official capacity. This is one Indianapolis resident's side project.
 
 ## Methodology
+
+OpenAI Assistants are currently created by hand in a Personal organization in their own Project.
+
 To interact with an assistant, we'll need to:
 
 1. Start a Thread: https://platform.openai.com/docs/assistants/overview/step-2-create-a-thread
