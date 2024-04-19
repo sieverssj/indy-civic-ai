@@ -1,5 +1,9 @@
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
 import { Assistants } from "./assistants/index.js";
+
+interface TypedRequestBody<T> extends Express.Request {
+  body: T
+}
 
 const assistants = new Assistants();
 const app = express();
@@ -14,14 +18,28 @@ app.use((req, res, next) => {
   next();
 });
 
-app.post("/chat", async (req, res) => {
-  const thread = await assistants.createThread();
-  const message = await assistants.addMessage(
-    thread.id,
-    "Tell me about noise ordinances",
+app.post("/chat", async (req: TypedRequestBody<{ message: string, threadId?: string }>, res) => {
+  let threadId = req.body.threadId;
+  if (!threadId) {
+    const thread = await assistants.createThread();
+    threadId = thread.id;
+  }
+  await assistants.addMessage(
+    threadId,
+    req.body.message
   );
-  const runResults = await assistants.createRun(thread.id);
-  res.send(runResults);
+  const runResults = await assistants.createRun(threadId);
+  res.send({
+    data: runResults,
+    meta: {
+      threadId: threadId
+    }
+  });
 });
+
+app.use(((err, req, res, next) => {
+  console.log("Server Error");
+  res.status(500).send(err);
+}) as ErrorRequestHandler);
 
 export default app;

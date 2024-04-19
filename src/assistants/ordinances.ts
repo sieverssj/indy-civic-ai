@@ -1,21 +1,110 @@
 import EventEmitter from "node:events";
 import OpenAI from "openai";
+import * as rm from 'typed-rest-client/RestClient.js';
 
+type MunicodeSearchResult = {
+  NumberOfHits: number,
+  Hits: Array<MunicodeSearchHit>,
+}
+
+type MunicodeSearchHit = {
+  NodeId: string,
+  Title: string,
+  ContentFragment: string,
+}
+
+type MunicodeGetResult = {
+  Docs: Array<MunicodeDoc>
+}
+
+type MunicodeDoc = {
+  Id: string,
+  Title: string,
+  Content: string,
+}
+
+type OrdinanceSummary = {
+  ordinanceId: string,
+  title: string,
+  excerpt: string,
+}
+
+type Ordinance = {
+  ordinanceId: string,
+  title: string,
+  content: string,
+}
+
+class MunicodeApi {
+  private client: rm.RestClient;
+
+  constructor(protocol: String = 'https', host: String = 'api.municode.com', port: number = 443) {
+    const baseUrl = `${protocol}://${host}:${port}`
+    this.client = new rm.RestClient('stanton-sandbox', baseUrl);
+  }
+
+  public async searchMunicipalCode(searchText: string): Promise<Array<OrdinanceSummary> | null> {
+    const response = await this.client.get<MunicodeSearchResult>(`/search?clientId=2720&contentTypeId=CODES&fragmentSize=200&isAdvanced=false&isAutocomplete=false&mode=CLIENTMODE&pageNum=1&pageSize=10&searchText=${searchText}&sort=0&stateId=14&titlesOnly=false`);
+    if (response.statusCode !== 200 || response.result == null) {
+      console.log(`An error occurred searching for "${searchText}": (${response.statusCode}): ${response.result}`);
+      // TODO: What should we actually be returning here?
+      return null;
+    }
+
+    // This returns HTML strings. Let's crudely clean it up.
+    // CONSIDER: Can the Assistant just handle the HTML fragments without issue?
+    const searchResults = response.result;
+    const sanitizedResults = searchResults.Hits.map(hit => {
+      return {
+        ordinanceId: hit.NodeId,
+        title: hit.Title.replace(/<\/?[^>]+(>|$)/g, "").trim(),
+        excerpt: hit.ContentFragment.replace(/<\/?[^>]+(>|$)/g, "").replace(/\n/g, "").replace(/\s{2,}/g, "").trim()
+      }
+    });
+    return sanitizedResults;
+  }
+
+  public async getMunicipalCode(ordinanceId: string): Promise<Ordinance | null> {
+    const response = await this.client.get<MunicodeGetResult>(`/CodesContent?isAdvancedSearch=false&jobId=451186&nodeId=${ordinanceId}&productId=12016`);
+    if (response.statusCode !== 200 || response.result == null) {
+      console.log(`An error occurred looking up ordinance with ID "${ordinanceId}": (${response.statusCode}): ${response.result}`);
+      // TODO: What should we actually be returning here?
+      return null;
+    }
+
+    // This returns HTML strings. Let's crudely clean it up.
+    // We also get back a bunch of "nearby" ordinances, so we'll filter down to just the one we care about
+    // CONSIDER: Can the Assistant just handle the HTML fragments without issue?
+    const getResults = response.result;
+    return getResults.Docs.filter(doc => doc.Id === ordinanceId).map(doc => {
+      return {
+        ordinanceId: doc.Id,
+        title: doc.Title,
+        content: doc.Content.replace(/<\/?[^>]+(>|$)/g, "").replace(/\n/g, "").replace(/\s{2,}/g, "").trim()
+      }
+    })[0];
+  }
+}
+
+// CONSIDER: This can likely be more generic. The control flow structure will look the same for any assistant using tools.
 export class OrdinanceEventHandler extends EventEmitter {
   private client: OpenAI;
-  resolve:
+  private resolve:
     | ((value: OpenAI.Beta.Threads.Messages.MessageContent[]) => void)
     | undefined;
-  reject:
+  private reject:
     | ((reason?: OpenAI.Beta.Threads.Runs.Run | OpenAI.ErrorObject) => void)
     | undefined;
-  message: OpenAI.Beta.Threads.Messages.MessageContent[] = [];
+  private message: OpenAI.Beta.Threads.Messages.MessageContent[] = [];
+  private municodeClient: MunicodeApi;
+
   constructor(client: OpenAI) {
     super();
     this.client = client;
+    this.municodeClient = new MunicodeApi();
   }
 
-  asPromise() {
+  asPromise(): Promise<OpenAI.Beta.Threads.Messages.MessageContent[]> {
     return new Promise((resolve, reject) => {
       this.resolve = resolve;
       this.reject = reject;
@@ -24,7 +113,6 @@ export class OrdinanceEventHandler extends EventEmitter {
 
   async onEvent(event: OpenAI.Beta.Assistants.AssistantStreamEvent) {
     try {
-      console.log(`Event ${event.event}`);
       switch (event.event) {
         case "thread.run.requires_action":
           await this.handleRequiresAction(
@@ -51,7 +139,8 @@ export class OrdinanceEventHandler extends EventEmitter {
           }
           break;
         default:
-          console.log(`${event.event}`);
+        // This is really chatty but useful to see the full control flow
+        // console.log(`${event.event}`);
       }
     } catch (error) {
       console.error("Error handling event:", error);
@@ -64,29 +153,43 @@ export class OrdinanceEventHandler extends EventEmitter {
     threadId: string,
   ) {
     try {
-      // FIXME: Can data.required_action really be null?
+      if (data.required_action === null) {
+        // CONSIDER: Do nothing. This should never happen, I think.
+        return;
+      }
+
+      // TODO: Clean this up - it's getting hard to parse
       const toolOutputs =
-        data.required_action?.submit_tool_outputs.tool_calls.map(
-          (toolCall: { function: { name: string }; id: any }) => {
-            console.log(`Tool Call: ${toolCall.function.name}`);
+        await Promise.all(data.required_action.submit_tool_outputs.tool_calls.map(
+          async (toolCall) => {
+            console.log(`Tool Call: ${toolCall.function.name}(${toolCall.function.arguments})`);
             if (toolCall.function.name === "search_municipal_code") {
-              // FIXME: Go search the municipal codes.
+              // CONSIDER: This JSON parse and stringification feels icky. Can we do better?
+              const searchText = JSON.parse(toolCall.function.arguments).text;
+              const searchResults = await this.municodeClient.searchMunicipalCode(searchText);
               return {
                 tool_call_id: toolCall.id,
-                output:
-                  '{results:[{ "nodeId": "TITIIPUORSA_CH391NU_ARTIIINO", "title": "ARTICLE III. - NOISE", "excerpt": "" }, { "nodeId": "TITIIPUORSA_CH391NU_ARTIIINO_S391-302UNNO", "title": "Sec. 391-302. - Unlawful noises.", "excerpt": "making of noise that is plainly audible to a person with normal hearing abovenormal ambient noise levels at a distance of fifty (50) feet from the source of thenoise on any" }, { "nodeId": "TITIIIPUHEWE_CH611MOVE_ARTIINGE_S611-102MUREST", "title": "Sec. 611-102. - Mufflers required; standards.", "excerpt": "vehicles and equipment, the mufflingor noise abatement device shall be at least sufficient to eliminate noise emissionfrom the motor vehicle or equipment by the guidelines set" }, { "nodeId": "TITIIPUORSA_CH391NU_ARTIIINO_S391-301PUPO", "title": "Sec. 391-301. - Public policy.", "excerpt": "unreasonable noise, and a determination of violation of thischapter may not be based on the content of any message conveyed during the creationof any noise or the identity" }, { "nodeId": "TITIIPUORSA_CH391NU_ARTVAIUSNOSOBR_S391-501DE", "title": "Sec. 391-501. - Definitions.", "excerpt": "any machine or device for the amplification of music, the human voiceor any other noise or sound; such term shall not be construed as including warningdevices on authorized" }, { "nodeId": "TITIVBUCORELI_CH895HOAWCA_S895-7RECOEQCA", "title": "Sec. 895-7. - Required construction and equipment of carriages.", "excerpt": "with a rubbercovering thick enough to protect the streets from damage and to keep noise to a minimum;" }, { "nodeId": "TITIIIPUHEWE_CH744DEST_ARTVLASC_S744-501PU", "title": "Sec. 744-501. - Purpose.", "excerpt": "uses requiringa buffer or screen between uses; to minimize the harmful impact of noise, dust andother debris, motor vehicle headlight glare or other artificial light intrusions" }, { "nodeId": "TITIIIPUHEWE_CH744DEST_ARTVLASC_S744-506TRYAEDBU", "title": "Sec. 744-506. - Transitional yard and edge buffering.", "excerpt": "shrubs per 25 feet of lot line, with spacing designedto minimize sound, light, and noise impacts.2." }, { "nodeId": "TITIIIPUHEWE_CH740GEPR_ARTIPUAP_S740-102PU", "title": "Sec. 740-102. - Purposes.", "excerpt": "values,reduced storm water runoff and soil erosion with associated cost savings, noise buffering,improved aesthetics, reduced energy costs from shade in summer and windbreaks" }, { "nodeId": "TITIIIPUHEWE_CH744DEST_ARTIX2018RESIRE_S744-904MASARE", "title": "Sec. 744-904. - Maintenance, safety and removal.", "excerpt": "OutdoorAdvertising Signs which are required to be elevated or relocated due to a noise abatementor safety measure, grade changes, construction, directional sign, highway" }]}',
+                output: JSON.stringify(searchResults)
               };
             } else if (toolCall.function.name === "get_municipal_code") {
               // FIXME: Go fetch the municipal codes
+              const ordinanceId = JSON.parse(toolCall.function.arguments).ordinanceId;
+              const ordinanceText = await this.municodeClient.getMunicipalCode(ordinanceId);
               return {
                 tool_call_id: toolCall.id,
-                output:
-                  '{"nodeId":"TITIIPUORSA_CH391NU_ARTIIINO_S391-302UNNO","title":"Sec. 391-302. - Unlawful noises.","content":"(a)For purposes of this chapter, unreasonable noise shall mean sound that is of a volume,frequency, or pattern that prohibits, disrupts, injures, or endangers the health,safety, welfare, prosperity, comfort, or repose of reasonable persons of ordinarysensitivities within the city, given the time of day and environment in which thesound is made.(b)Except as otherwise provided in this section, it shall be unlawful for any personto make, continue, or cause to be made or continued any unreasonable noise."}',
+                output: JSON.stringify(ordinanceText)
               };
+            } else {
+              // TODO: Handle this
+              return {
+                tool_call_id: toolCall.id,
+                output: "Error"
+              }
             }
           },
-        );
+        ));
       // Submit all the tool outputs at the same time
+      console.log(`TOOL OUTPUTS\n${JSON.stringify(toolOutputs)}`);
       await this.submitToolOutputs(toolOutputs, runId, threadId);
     } catch (error) {
       console.error("Error processing required action:", error);

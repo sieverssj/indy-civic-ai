@@ -8,28 +8,91 @@ We'll start with one assistant that can answer questions of Municipal Ordinances
 
 The Assistant was manually created here: https://platform.openai.com/assistants/asst_Ro2w1A8EZ0PXc1WaUdh9mfhi
 
+### Methodology
 To interact with this assistant, we'll need to:
 
 1. Start a Thread: https://platform.openai.com/docs/assistants/overview/step-2-create-a-thread
 1. Take in user input to create a Message in that thread: https://platform.openai.com/docs/assistants/overview/step-3-add-a-message-to-the-thread
 1. Create a Run for that thread: https://platform.openai.com/docs/assistants/tools/function-calling/step-3-initiate-a-run
-1. Inspect responses for Function calls: See the link in the previous step
+1. Inspect responses for Function calls and call out to fulfill those functions: See the link in the previous step
+1. Return the result of the run to the user, along with the thread id. This allows future calls providing the threadId as a way to continue the conversation
 
-We likely need to generate a session ID of some sort to track the actual user session. Or is the thread ID enough? Maybe that's enough.
 
-## Where are we?
-At this point in time the server runs, it creates a thread, adds a static message, runs the thread, calls out to tools which respond with static responses, and then returns a response. In short, it's wired up and "working".
 
-## What's next?
+### Current state
+At this point, the client works end-to-end. Here's an example use case:
 
-### Immediately Next
-* Remove all the static bits:
-  * Message content should come from POST body
-  * Tools should make real calls
-* Allow endpoints to take a thread ID to continue a conversation that's already been started
+Start a new thread with a simple question
+```
+curl --location 'http://localhost:3000/chat' \
+--header 'Content-Type: application/json' \
+--data '{
+    "message": "Can you tell me about noise ordinances?"
+}'
+```
 
-### Future
+Example return - truncated for clarity
+```
+{
+    "data": [
+        {
+            "type": "text",
+            "text": {
+                "value": "There are several noise ordinances in Marion County. Here are a few examples:\n\n1. Sec. 391-302. - Unlawful noises: This ordinance prohibits making noise that is plainly audible to a person with normal hearing above normal ambient noise levels at a distance of fifty (50) feet from the source of the noise.
+
+                <snip />
+
+                Please let me know if you would like more information on any specific ordinance.",
+                "annotations": []
+            }
+        }
+    ],
+    "meta": {
+        "threadId": "thread_KQMcww2oUlUuVmOAJ9qhQrEa"
+    }
+}
+```
+
+Make a followup call for information about a specific ordinance
+```
+curl --location 'http://localhost:3000/chat' \
+--header 'Content-Type: application/json' \
+--data '{
+    "message": "Tell me more about the Unlawful noises ordinance",
+    "threadId": "my_thread_id"
+}'
+```
+
+Example return - this has been truncated, as it returns the full ordinance text
+```
+{
+    "data": [
+        {
+            "type": "text",
+            "text": {
+                "value": "The Unlawful Noises ordinance in Marion County is outlined in Section 391-302. Here are the key points of this ordinance:\n\n1. 
+                <snip />
+                For specific details and complete information, it is recommended to refer to the full text of the ordinance.",
+                "annotations": []
+            }
+        }
+    ],
+    "meta": {
+        "threadId": "thread_OJrpnQ3P4EV8rDBPPQ0b7OG5"
+    }
+}
+```
+
+### What's next?
+
+#### Sooner
+* General cleanup and refactoring to make the code more readable
+
+
+#### Later
+* Hosting the API somewhere
 * Simple UI to interact with things
-* Better error handling
+* Better error handling, especially for billing and rate limiting errors
 * More assistants that we can pivot between
-* Capture some user metadata when they start a chat
+* Capture some user metadata when they start a chat. This can be provided as additional instructions for a better UX.
+
