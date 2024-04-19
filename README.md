@@ -6,8 +6,11 @@ _Disclaimer_: This project is not affiliated with the city of Indianapolis or Ma
 
 ## Methodology
 
-OpenAI Assistants are currently created by hand in a Personal organization in their own Project.
+The main assumption here is that it is intractable to configure a single OpenAI Assistant to answer the wide variety of questions that could fall under the broad category of "civics". Instead I'd like to approach this as many Assistants that are configured on a specific area and a top-level Assistant that acts as an operator, connecting users to the right Assistant under the covers.
 
+_Note_: For this project, OpenAI Assistants are currently created by hand in a Personal organization in their own Project.
+
+### Interacting with Assistants
 To interact with an assistant, we'll need to:
 
 1. Start a Thread: https://platform.openai.com/docs/assistants/overview/step-2-create-a-thread
