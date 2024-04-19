@@ -112,6 +112,7 @@ This is a place to gather ideas about other assistants that could be created.
 
 ### Sooner
 * General cleanup and refactoring to make the code more readable
+* Think about testability
 
 
 ### Later
@@ -120,4 +121,9 @@ This is a place to gather ideas about other assistants that could be created.
 * Better error handling, especially for billing and rate limiting errors
 * More assistants that we can pivot between
 * Capture some user metadata when they start a chat. This can be provided as additional instructions for a better UX.
+
+### Much Later
+* Datastore to keep thread history
+* Datastore also allows us to codify assistant creation by creating the assistant and storing its ID in a store
+* Datastore allows multiple environments if ever necessary
 
