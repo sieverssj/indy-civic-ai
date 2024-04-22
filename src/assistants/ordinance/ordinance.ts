@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import * as rm from "typed-rest-client/RestClient.js";
-import { AssistantEventHandler } from "./events.js";
+import { AssistantEventHandler } from "../events.js";
+import { Assistant } from "../assistant.js";
 
 type MunicodeSearchResult = {
   NumberOfHits: number;
@@ -110,7 +111,7 @@ class MunicodeApi {
   }
 }
 
-export class OrdinanceEventHandler extends AssistantEventHandler {
+class OrdinanceEventHandler extends AssistantEventHandler {
   private municodeClient: MunicodeApi;
 
   constructor(client: OpenAI) {
@@ -142,7 +143,6 @@ export class OrdinanceEventHandler extends AssistantEventHandler {
                 output: JSON.stringify(searchResults),
               };
             } else if (toolCall.function.name === "get_municipal_code") {
-              // FIXME: Go fetch the municipal codes
               const ordinanceId = JSON.parse(
                 toolCall.function.arguments,
               ).ordinanceId;
@@ -166,5 +166,11 @@ export class OrdinanceEventHandler extends AssistantEventHandler {
     } catch (error) {
       console.error("Error processing required action:", error);
     }
+  }
+}
+
+export class OrdinanceAssistant extends Assistant<OrdinanceEventHandler> {
+  protected getEventHandler(): OrdinanceEventHandler {
+    return new OrdinanceEventHandler(this.openai);
   }
 }

@@ -43,7 +43,7 @@ export abstract class AssistantEventHandler extends EventEmitter {
         case "thread.run.requires_action":
           const toolOutputs = await this.handleRequiresAction(event.data);
           // Submit all the tool outputs at the same time
-          console.log(`TOOL OUTPUTS\n${JSON.stringify(toolOutputs)}`);
+          // console.log(`TOOL OUTPUTS\n${JSON.stringify(toolOutputs)}`);
           await this.submitToolOutputs(
             toolOutputs,
             event.data.id,
@@ -51,7 +51,9 @@ export abstract class AssistantEventHandler extends EventEmitter {
           );
           break;
         case "thread.message.completed":
-          console.log(`assistant(${event.data.thread_id}) > ${JSON.stringify(event.data.content)}`)
+          // This can be very chatty but useful for debugging.
+          // console.log(`assistant(${event.data.thread_id}) > ${JSON.stringify(event.data.content)}`)
+          console.log(`assistant(${event.data.thread_id}) > Message completed`)
           this.message = event.data.content;
           break;
         case "thread.run.completed":

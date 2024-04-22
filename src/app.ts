@@ -1,11 +1,11 @@
 import express, { type ErrorRequestHandler } from "express";
-import { Assistants } from "./assistants/index.js";
+import { Operator } from "./assistants/index.js";
 
 interface TypedRequestBody<T> extends Express.Request {
   body: T;
 }
 
-const assistants = new Assistants();
+const operator = new Operator();
 const app = express();
 app.use(
   express.json({
@@ -26,11 +26,11 @@ app.post(
   ) => {
     let threadId = req.body.threadId;
     if (!threadId) {
-      const thread = await assistants.createThread();
+      const thread = await operator.createThread();
       threadId = thread.id;
     }
-    await assistants.addMessage(threadId, req.body.message);
-    const runResults = await assistants.createRun(threadId);
+    await operator.addMessage(threadId, req.body.message);
+    const runResults = await operator.createRun(threadId);
     res.send({
       data: runResults,
       meta: {
