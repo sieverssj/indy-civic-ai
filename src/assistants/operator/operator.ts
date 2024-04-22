@@ -46,6 +46,7 @@ class OperatorEventHandler extends AssistantEventHandler {
               const functionArgs = JSON.parse(toolCall.function.arguments) as {
                 assistantId: string,
                 message: string,
+                threadId?: string,
               };
               const assistant = this.assistantRegistry[functionArgs.assistantId];
               // TODO: Return a better error
@@ -55,12 +56,15 @@ class OperatorEventHandler extends AssistantEventHandler {
                   output: `Assistant with id "${functionArgs.assistantId}" not found`
                 }
               }
-              const thread = await assistant.createThread();
-              await assistant.addMessage(thread.id, functionArgs.message);
-              const responseMessage = await assistant.createRun(thread.id);
+              const threadId = functionArgs.threadId ?? (await assistant.createThread()).id
+              await assistant.addMessage(threadId, functionArgs.message);
+              const responseMessage = await assistant.createRun(threadId);
               return {
                 tool_call_id: toolCall.id,
-                output: JSON.stringify(responseMessage),
+                output: JSON.stringify({
+                  threadId,
+                  responseMessage
+                }),
               };
             } else {
               // TODO: Handle this
