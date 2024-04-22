@@ -12,6 +12,4 @@ This assistant implements 2 functions: `get_assistants` and `delegate_assistants
 
 ### delegate_assistants
 
-`delegate_assistants` takes an `assistantId` and a `message` and invokes the given assistant with the given message and returns its response.
-
-CONSIDER: Should this also take a `threadId` as a parameter? Are there cases where the operator will have an ongoing conversation with a sub-assistant?
+`delegate_assistants` takes an `assistantId`, a `message`, and an optional `threadId` and invokes the given assistant with the given message and returns its response. The `threadId` is returned from previous calls and is used for conversation continuity.

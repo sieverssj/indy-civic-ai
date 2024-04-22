@@ -8,7 +8,9 @@ _Disclaimer_: This project is not affiliated with the city of Indianapolis or Ma
 
 The main assumption here is that it is intractable to configure a single OpenAI Assistant to answer the wide variety of questions that could fall under the broad category of "civics". Instead I'd like to approach this as many Assistants that are configured on a specific area and a top-level Assistant that acts as an operator, connecting users to the right Assistant under the covers.
 
-There are two possible approaches I have in mind:
+The current implementation is using the "operator as broker" methodology.
+
+For posterity, there are two possible approaches I considered:
 
 1. The user truly switches assistants. They go from talking to the Operator assistant to the sub-assistant. The Civis API keeps track of which assistant the user should be talking to at any given time. The Operator in this scenario is like a switchboard operator, simply connecting the user to the right place.
    - Pros: The operator can be pretty dumb. The Civics API itself manages message passing between all assistants and keeps track of meta-threads.
@@ -31,6 +33,7 @@ To interact with an assistant, we'll need to:
 
 ## Assistants
 
+- [Operator](./src/assistants/operator/README.md)
 - [Ordinances](./src/assistants/ordinances/README.md)
 
 ## Current state
