@@ -130,9 +130,6 @@ This is a place to gather ideas about other assistants that could be created.
 - Think about testability
 - Put some actual thought into the request and response structure (maybe it's too soon for that)
 - Rethink the `AssistantEventHandler` model. There's a lot of boilerplate shared between the 2 `handleRequiresAction` implementations right now
-- Prove out the operator approach
-  - Prove out if returning JSON responses from sub-assistants could be viable
-  - Add a threadId to allow the operator to carry on a conversation thread with sub-assistants to maintain context and continuity
 
 ### Later
 
