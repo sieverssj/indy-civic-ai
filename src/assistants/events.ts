@@ -2,8 +2,7 @@ import EventEmitter from "node:events";
 import type OpenAI from "openai";
 
 // CONSIDER: Can we clean up this handler typing stuff?
-export type FunctionCallHandler = (fnArgs: any) => Promise<any>;
-export type FunctionCallRegistry = Record<string, FunctionCallHandler>;
+export type FunctionCallHandler<T, R> = (functionArgs: T) => Promise<R>;
 
 /**
  * An abstract event handler that should work for any assistant. Assistants need to implement `handleRequiresAction` to handle any tool calls.
@@ -19,11 +18,13 @@ export abstract class AssistantEventHandler extends EventEmitter {
     | ((reason?: OpenAI.Beta.Threads.Runs.Run | OpenAI.ErrorObject) => void)
     | undefined;
   private message: OpenAI.Beta.Threads.Messages.MessageContent[] = [];
-  private functionCallHandlers: FunctionCallRegistry;
+
+  // CONSIDER: Should we introduce generics to this class to allow FunctionCallHandler to avoid explicit any?
+  private functionCallHandlers: Record<string, FunctionCallHandler<any, any>>;
   constructor(client: OpenAI) {
     super();
     this.client = client;
-    this.functionCallHandlers = {} as FunctionCallRegistry;
+    this.functionCallHandlers = {};
   }
 
   asPromise(): Promise<OpenAI.Beta.Threads.Messages.MessageContent[]> {
@@ -79,9 +80,9 @@ export abstract class AssistantEventHandler extends EventEmitter {
 
   // CONSIDER: Why make this protected? Do we really want to necessitate sub-classes of this for each assistant or can it be generic?
   // Maybe the answer will depend on how we can end up doing stronger typing around these function calls.
-  protected registerFunctionCallHandler(
+  protected registerFunctionCallHandler<T, R>(
     fnName: string,
-    fn: FunctionCallHandler,
+    fn: FunctionCallHandler<T, R>,
   ) {
     this.functionCallHandlers[fnName] = fn;
   }
