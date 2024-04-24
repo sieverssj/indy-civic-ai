@@ -1,1 +1,1 @@
-export * from "./operator/operator.js"
+export * from "./operator/operator.js";

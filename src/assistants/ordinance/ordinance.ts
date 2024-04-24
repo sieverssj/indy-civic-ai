@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import * as rm from "typed-rest-client/RestClient.js";
-import { AssistantEventHandler } from "../events.js";
+import { AssistantEventHandler, type FunctionCallRegistry } from "../events.js";
 import { Assistant } from "../assistant.js";
 
 type MunicodeSearchResult = {
@@ -111,65 +111,33 @@ class MunicodeApi {
   }
 }
 
+type SearchMunicipalCodeArgs = {
+  text: string;
+};
+type GetMunicipalCodeArgs = {
+  ordinanceId: string;
+};
+
 class OrdinanceEventHandler extends AssistantEventHandler {
   private municodeClient: MunicodeApi;
 
   constructor(client: OpenAI) {
     super(client);
     this.municodeClient = new MunicodeApi();
-  }
-
-  async handleRequiresAction(data: OpenAI.Beta.Threads.Runs.Run) {
-    try {
-      if (data.required_action === null) {
-        // CONSIDER: Do nothing. This should never happen, I think.
-        return;
-      }
-
-      // TODO: Clean this up - it's getting hard to parse
-      const toolOutputs = await Promise.all(
-        data.required_action.submit_tool_outputs.tool_calls.map(
-          async (toolCall) => {
-            console.log(
-              `Tool Call: ${toolCall.function.name}(${toolCall.function.arguments})`,
-            );
-            if (toolCall.function.name === "search_municipal_code") {
-              // CONSIDER: This JSON parse and stringification feels icky. Can we do better?
-              const searchText = JSON.parse(toolCall.function.arguments).text;
-              const searchResults =
-                await this.municodeClient.searchMunicipalCode(searchText);
-              return {
-                tool_call_id: toolCall.id,
-                output: JSON.stringify(searchResults),
-              };
-            } else if (toolCall.function.name === "get_municipal_code") {
-              const ordinanceId = JSON.parse(
-                toolCall.function.arguments,
-              ).ordinanceId;
-              const ordinanceText =
-                await this.municodeClient.getMunicipalCode(ordinanceId);
-              return {
-                tool_call_id: toolCall.id,
-                output: JSON.stringify(ordinanceText),
-              };
-            } else {
-              // TODO: Handle this
-              return {
-                tool_call_id: toolCall.id,
-                output: "Error",
-              };
-            }
-          },
-        ),
-      );
-      return toolOutputs;
-    } catch (error) {
-      console.error("Error processing required action:", error);
-    }
+    this.registerFunctionCallHandler(
+      "search_municipal_code",
+      (args: SearchMunicipalCodeArgs) =>
+        this.municodeClient.searchMunicipalCode(args.text),
+    );
+    this.registerFunctionCallHandler(
+      "get_municipal_code",
+      (args: GetMunicipalCodeArgs) =>
+        this.municodeClient.getMunicipalCode(args.ordinanceId),
+    );
   }
 }
 
-export class OrdinanceAssistant extends Assistant<OrdinanceEventHandler> {
+export class OrdinanceAssistant extends Assistant {
   protected getEventHandler(): OrdinanceEventHandler {
     return new OrdinanceEventHandler(this.openai);
   }

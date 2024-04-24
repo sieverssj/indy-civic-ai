@@ -1,6 +1,10 @@
 import EventEmitter from "node:events";
 import type OpenAI from "openai";
 
+// CONSIDER: Can we clean up this handler typing stuff?
+export type FunctionCallHandler = (fnArgs: any) => Promise<any>;
+export type FunctionCallRegistry = Record<string, FunctionCallHandler>;
+
 /**
  * An abstract event handler that should work for any assistant. Assistants need to implement `handleRequiresAction` to handle any tool calls.
  *
@@ -15,20 +19,12 @@ export abstract class AssistantEventHandler extends EventEmitter {
     | ((reason?: OpenAI.Beta.Threads.Runs.Run | OpenAI.ErrorObject) => void)
     | undefined;
   private message: OpenAI.Beta.Threads.Messages.MessageContent[] = [];
+  private functionCallHandlers: FunctionCallRegistry;
   constructor(client: OpenAI) {
     super();
     this.client = client;
+    this.functionCallHandlers = {} as FunctionCallRegistry;
   }
-  /**
-   * Subclasses must implement a way to handle any required actions. If a "thread.run.requires_action" event is received, this will be called.
-   *
-   * @param data
-   *
-   * @returns Tool outputs, which can be anything right now. TODO: We should lock this down to some specific data format or structure.
-   */
-  abstract handleRequiresAction(
-    data: OpenAI.Beta.Threads.Runs.Run,
-  ): Promise<any>;
 
   asPromise(): Promise<OpenAI.Beta.Threads.Messages.MessageContent[]> {
     return new Promise((resolve, reject) => {
@@ -53,11 +49,11 @@ export abstract class AssistantEventHandler extends EventEmitter {
         case "thread.message.completed":
           // This can be very chatty but useful for debugging.
           // console.log(`assistant(${event.data.thread_id}) > ${JSON.stringify(event.data.content)}`)
-          console.log(`assistant(${event.data.thread_id}) > Message completed`)
+          console.log(`assistant(${event.data.thread_id}) > Message completed`);
           this.message = event.data.content;
           break;
         case "thread.run.completed":
-          console.log(`assistant(${event.data.thread_id}) > Over and out.`)
+          console.log(`assistant(${event.data.thread_id}) > Over and out.`);
           if (this.resolve) {
             this.resolve(this.message);
           }
@@ -66,7 +62,7 @@ export abstract class AssistantEventHandler extends EventEmitter {
         case "thread.run.cancelling":
         case "thread.run.cancelled":
         case "thread.run.expired":
-          console.log(`assistant(${event.data.thread_id}) > Error encountered`)
+          console.log(`assistant(${event.data.thread_id}) > Error encountered`);
         case "error":
           if (this.reject) {
             this.reject(event.data);
@@ -81,7 +77,62 @@ export abstract class AssistantEventHandler extends EventEmitter {
     }
   }
 
-  async submitToolOutputs(toolOutputs: any, runId: string, threadId: string) {
+  // CONSIDER: Why make this protected? Do we really want to necessitate sub-classes of this for each assistant or can it be generic?
+  // Maybe the answer will depend on how we can end up doing stronger typing around these function calls.
+  protected registerFunctionCallHandler(
+    fnName: string,
+    fn: FunctionCallHandler,
+  ) {
+    this.functionCallHandlers[fnName] = fn;
+  }
+
+  /**
+   * If a "thread.run.requires_action" event is received, this will be called.
+   *
+   * @param data
+   *
+   * @returns Tool outputs, which can be anything right now. TODO: We should lock this down to some specific data format or structure.
+   */
+  private async handleRequiresAction(
+    data: OpenAI.Beta.Threads.Runs.Run,
+  ): Promise<any> {
+    try {
+      if (data.required_action === null) {
+        // CONSIDER: Do nothing. This should never happen, I think.
+        return;
+      }
+
+      // TODO: Clean this up - it's getting hard to parse
+      const toolOutputs = await Promise.all(
+        data.required_action.submit_tool_outputs.tool_calls.map(
+          async (toolCall) => {
+            const fnName = toolCall.function.name;
+            const fnArgsString = toolCall.function.arguments;
+            console.log(`Tool Call: ${fnName}(${fnArgsString})`);
+            const fn = this.functionCallHandlers[toolCall.function.name];
+            if (!fn) {
+              // TODO: What to do here?
+              console.log(`Handler not found for ${fnName}`);
+            }
+            const fnResponse = await fn(JSON.parse(fnArgsString));
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify(fnResponse),
+            };
+          },
+        ),
+      );
+      return toolOutputs;
+    } catch (error) {
+      console.error("Error processing required action:", error);
+    }
+  }
+
+  private async submitToolOutputs(
+    toolOutputs: any,
+    runId: string,
+    threadId: string,
+  ) {
     try {
       // Use the submitToolOutputsStream helper
       const stream = this.client.beta.threads.runs.submitToolOutputsStream(

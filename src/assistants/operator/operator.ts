@@ -5,95 +5,66 @@ import { ENV } from "../../env.js";
 import { Assistant } from "../assistant.js";
 import { OrdinanceAssistant } from "../ordinance/ordinance.js";
 
+type DelegateAssistantArgs = {
+  assistantId: string;
+  message: string;
+  threadId?: string;
+};
+
 class OperatorEventHandler extends AssistantEventHandler {
-  private assistantRegistry: Record<string, Assistant<any>>;
-  constructor(client: OpenAI, assistantRegistry: Record<string, Assistant<any>>) {
+  private assistantRegistry: Record<string, Assistant>;
+  constructor(client: OpenAI, assistantRegistry: Record<string, Assistant>) {
     super(client);
     this.assistantRegistry = assistantRegistry;
-  }
-
-  async handleRequiresAction(data: Run): Promise<any> {
-    try {
-      if (data.required_action === null) {
-        // CONSIDER: Do nothing. This should never happen, I think.
-        return;
-      }
-
-      // TODO: Clean this up - it's getting hard to parse. Ideally we would have a way to do this that 
-      // doesn't require implementors to know the guts of OpenAI calls. A simple toolName -> function map might suffice.
-      const toolOutputs = await Promise.all(
-        data.required_action.submit_tool_outputs.tool_calls.map(
-          async (toolCall) => {
-            console.log(
-              `Tool Call: ${toolCall.function.name}(${toolCall.function.arguments})`,
-            );
-            if (toolCall.function.name === "get_assistants") {
-              // FIXME: We need a registry, but for now we'll hardcode a response to the Ordinances assistant.
-              const assistants = {
-                assistants: [
-                  {
-                    assistantId: ENV.OPENAI_ASSISTANT_ID_ORDINANCES,
-                    name: "Municipal Ordinances",
-                    description: "Knowledgeable about Marion County and Indianapolis Code of Ordinances"
-                  }
-                ]
-              }
-              return {
-                tool_call_id: toolCall.id,
-                output: JSON.stringify(assistants),
-              };
-            } else if (toolCall.function.name === "delegate_assistant") {
-              const functionArgs = JSON.parse(toolCall.function.arguments) as {
-                assistantId: string,
-                message: string,
-                threadId?: string,
-              };
-              const assistant = this.assistantRegistry[functionArgs.assistantId];
-              // TODO: Return a better error
-              if (!assistant) {
-                return {
-                  tool_call_id: toolCall.id,
-                  output: `Assistant with id "${functionArgs.assistantId}" not found`
-                }
-              }
-              const threadId = functionArgs.threadId ?? (await assistant.createThread()).id
-              await assistant.addMessage(threadId, functionArgs.message);
-              const responseMessage = await assistant.createRun(threadId);
-              return {
-                tool_call_id: toolCall.id,
-                output: JSON.stringify({
-                  threadId,
-                  responseMessage
-                }),
-              };
-            } else {
-              // TODO: Handle this
-              return {
-                tool_call_id: toolCall.id,
-                output: "Error",
-              };
-            }
+    this.registerFunctionCallHandler("get_assistants", async (args) => {
+      // FIXME: This should be dynamic
+      return {
+        assistants: [
+          {
+            assistantId: ENV.OPENAI_ASSISTANT_ID_ORDINANCES,
+            name: "Municipal Ordinances",
+            description:
+              "Knowledgeable about Marion County and Indianapolis Code of Ordinances",
           },
-        ),
-      );
-      return toolOutputs;
-    } catch (error) {
-      console.error("Error processing required action:", error);
-    }
+        ],
+      };
+    });
+    this.registerFunctionCallHandler(
+      "delegate_assistant",
+      async (args: DelegateAssistantArgs) => {
+        const assistant = this.assistantRegistry[args.assistantId];
+        if (!assistant) {
+          return `Assistant with id "${args.assistantId}" not found`;
+        }
+        const threadId = args.threadId ?? (await assistant.createThread()).id;
+        await assistant.addMessage(threadId, args.message);
+        const responseMessage = await assistant.createRun(threadId);
+        return {
+          threadId,
+          responseMessage,
+        };
+      },
+    );
   }
 }
 
-export class Operator extends Assistant<OperatorEventHandler> {
-  private assistantRegistry: Record<string, Assistant<any>>
+export class Operator extends Assistant {
+  private assistantRegistry: Record<string, Assistant>;
   constructor(
     organization = ENV.OPENAI_ORGANIZATION,
     project = ENV.OPENAI_PROJECT,
-    apiKey = ENV.OPENAI_API_KEY
+    apiKey = ENV.OPENAI_API_KEY,
   ) {
-    super(new OpenAI({ organization, project, apiKey }), ENV.OPENAI_ASSISTANT_ID_OPERATOR);
+    super(
+      new OpenAI({ organization, project, apiKey }),
+      ENV.OPENAI_ASSISTANT_ID_OPERATOR,
+    );
     this.assistantRegistry = {
-      [ENV.OPENAI_ASSISTANT_ID_ORDINANCES]: new OrdinanceAssistant(this.openai, ENV.OPENAI_ASSISTANT_ID_ORDINANCES)
-    }
+      [ENV.OPENAI_ASSISTANT_ID_ORDINANCES]: new OrdinanceAssistant(
+        this.openai,
+        ENV.OPENAI_ASSISTANT_ID_ORDINANCES,
+      ),
+    };
   }
 
   protected getEventHandler(): OperatorEventHandler {
