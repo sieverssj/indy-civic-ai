@@ -4,6 +4,10 @@ The goal of this project is to create a Web App that is a delegate in front of a
 
 _Disclaimer_: This project is not affiliated with the city of Indianapolis or Marion County in any official capacity. This is one Indianapolis resident's side project.
 
+## Getting Started
+
+From the root of the directory, run `npm start`. This will launch the client and server. Go to `localhost:3000`.
+
 ## Methodology
 
 The main assumption here is that it is intractable to configure a single OpenAI Assistant to answer the wide variety of questions that could fall under the broad category of "civics". Instead I'd like to approach this as many Assistants that are configured on a specific area and a top-level Assistant that acts as an operator, connecting users to the right Assistant under the covers.
@@ -33,8 +37,8 @@ To interact with an assistant, we'll need to:
 
 ## Assistants
 
-- [Operator](./src/assistants/operator/README.md)
-- [Ordinances](./src/assistants/ordinances/README.md)
+- [Operator](./server/src/assistants/operator/README.md)
+- [Ordinances](./server/src/assistants/ordinances/README.md)
 
 ## Current state
 
@@ -43,7 +47,7 @@ At this point, the client works end-to-end. Here's an example use case:
 Start a new thread with a simple question
 
 ```
-curl --location 'http://localhost:3000/chat' \
+curl --location 'http://localhost:5000/chat' \
 --header 'Content-Type: application/json' \
 --data '{
     "message": "Can you tell me about noise ordinances?"
@@ -76,7 +80,7 @@ Example return - truncated for clarity
 Make a followup call for information about a specific ordinance
 
 ```
-curl --location 'http://localhost:3000/chat' \
+curl --location 'http://localhost:5000/chat' \
 --header 'Content-Type: application/json' \
 --data '{
     "message": "Tell me more about the Unlawful noises ordinance",

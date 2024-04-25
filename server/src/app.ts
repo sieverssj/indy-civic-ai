@@ -1,4 +1,5 @@
 import express, { type ErrorRequestHandler } from "express";
+import cors from "cors";
 import { Operator } from "./assistants/index.js";
 
 interface TypedRequestBody<T> extends Express.Request {
@@ -7,6 +8,7 @@ interface TypedRequestBody<T> extends Express.Request {
 
 const operator = new Operator();
 const app = express();
+app.use(cors());
 app.use(
   express.json({
     strict: true,
