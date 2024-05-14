@@ -87,26 +87,19 @@ const Chat = () => {
     }
   };
   return (
-    <div className="grow">
+    <div className="grow h-full">
       {/* Tailwind jacked from https://flowbite.com/docs/forms/textarea/ */}
-      <form
-        ref={formRef}
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <div>
+        <ul className="divide-y overflow-y-auto h-5/6">
           {chatHistory.map((chatLine, index) => (
-            <div
+            <li
               key={index}
               className="items-left px-3 py-2 my-2 rounded-lg bg-gray-50 dark:bg-gray-700"
             >
-              ({chatLine.threadId}) {chatLine.role}&gt;{" "}
+              <span>({chatLine.threadId}) {chatLine.role}&gt;{" "}</span>
               <span className="display-linebreak">{chatLine.message}</span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
         {isLoading && (
           <div
             role="status"
@@ -131,6 +124,13 @@ const Chat = () => {
             <span className="sr-only">Loading...</span>
           </div>
         )}
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
         <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700">
           <label htmlFor="chat" className="sr-only">
             Your message
